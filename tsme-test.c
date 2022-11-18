@@ -28,7 +28,7 @@ module_param(debug, uint, 0444);
 MODULE_PARM_DESC(debug, " print extra debug information - any non-zero value");
 
 #undef pr_fmt
-#define pr_fmt(fmt)	"TSME Test: " fmt
+#define pr_fmt(fmt)	"(T)SME Test: " fmt
 
 static int tsme_active;
 
@@ -66,10 +66,10 @@ static void update_pte(pte_t *ptep, pte_t pte)
 static int __init tsme_test_init(void)
 {
 	unsigned long sme_mask;
-	void *buffer, *buffer_reference, *buffers[RETRY_COUNT];
-	struct page *page, *page_reference;
+	void *buffer, *buffer_reference, *buffers[RETRY_COUNT], *buffer_sme, *buffers_sme[RETRY_COUNT];
+	struct page *page, *page_reference, *page_sme;
 	pte_t *ptep, old_pte, new_pte;
-	unsigned int level, retry;
+	unsigned int level, retry, retry_sme;
 	int ret;
 
 	if (cpuid_eax(0x80000000) < 0x8000001f) {
@@ -155,6 +155,59 @@ retry:
 		pr_err("sysfs_create_file failed: ret=%d\n", ret);
 
 	free_page((unsigned long)buffer_reference);
+
+	retry_sme = 0;
+retry_sme:	
+	page_sme = alloc_page(GFP_KERNEL);
+	if (!page_sme)
+		goto e_freehuge_sme;
+
+	buffer_sme = page_address(page_sme);
+	ptep = lookup_address((unsigned long)buffer_sme, &level);
+	if (level != PG_LEVEL_4K) {
+		buffers_sme[retry_sme++] = buffer_sme;
+		if (retry_sme >= RETRY_COUNT) {
+			pr_err("Hugepage repeatedly allocated, unable to determine TSME status\n");
+			goto e_freehuge_sme;
+		}
+
+		goto retry_sme;
+	}
+
+	pr_notice("Disable sme mask (no encryption) and fill buffer with zeros:\n");
+	old_pte = *ptep;
+	new_pte = __pte(pte_val(*ptep) & ~sme_mask); //disable sme mask
+	update_pte(ptep, new_pte);
+	memset(buffer_sme, 0x00, PAGE_SIZE); // should write 0s
+	pr_notice("Old PTE = %#lx, New PTE = %#lx\n", pte_val(old_pte), pte_val(new_pte));
+	pr_notice("Buffer (C-bit=%u)\n", (bool)(pte_val(new_pte) & sme_mask));
+	print_hex_dump(KERN_DEBUG, "SME Test: Buffer (first 64b: No encryption) ", DUMP_PREFIX_OFFSET, 16, 1, buffer_sme, 64, 1);
+
+	pr_notice("Enable sme mask (encryption/decryption) and fill buffer with zeros:\n");
+	new_pte = __pte(pte_val(*ptep) | sme_mask); //enable sme mask
+	update_pte(ptep, new_pte);
+	memset(buffer_sme, 0x00, PAGE_SIZE); // should be encrypted
+	pr_notice("Old PTE = %#lx, New PTE = %#lx\n", pte_val(old_pte), pte_val(new_pte));
+	pr_notice("Buffer (C-bit=%u)\n", (bool)(pte_val(new_pte) & sme_mask));
+	print_hex_dump(KERN_DEBUG, "SME Test: Buffer (first 64b: Decrypted) ", DUMP_PREFIX_OFFSET, 16, 1, buffer_sme, 64, 1);
+
+	pr_notice("Disable sme mask (no decryption) and read the encrypted buffer previously filled with zeros:\n");
+	new_pte = __pte(pte_val(*ptep) & ~sme_mask); //disable sme mask to present the encrypted data
+	update_pte(ptep, new_pte);
+	pr_notice("Old PTE = %#lx, New PTE = %#lx\n", pte_val(old_pte), pte_val(new_pte));
+	pr_notice("Buffer (C-bit=%u)\n", (bool)(pte_val(new_pte) & sme_mask));
+	print_hex_dump(KERN_DEBUG, "SME Test: Buffer (first 64b: No decryption) ", DUMP_PREFIX_OFFSET, 16, 1, buffer_sme, 64, 1);
+
+	/* Reset the encryption mask to the original */
+	update_pte(ptep, old_pte);
+
+	free_page((unsigned long)buffer_sme);
+
+e_freehuge_sme:
+	while (retry_sme) {
+		retry_sme--;
+		free_page((unsigned long)buffers_sme[retry_sme]);
+	}
 
 e_free:
 	free_page((unsigned long)buffer);
