@@ -1,23 +1,34 @@
 
-TSME Test Module:
-	The TSME test module is a loadable Linux kernel module that can
-	be used to determine the state of TSME.
+# TSME Test Module
+The TSME test module is a loadable Linux kernel module that can
+be used to determine the state of TSME and SME.
 
-	In order to determine if TSME is active, the SME feature must be
-	enabled, but it does not need to be active (the kernel does not
-	need to have been booted with mem_encrypt=on).
+In order to determine if TSME is active, the SME feature must be
+enabled, but it does not need to be active (the kernel does not
+need to have been booted with mem_encrypt=on).
 
-	The TSME test module will create a sysfs file if no errors are
-	encountered while loading the module: /sys/kernel/tsme. If TSME
-	is active, the /sys/kernel/tsme file will report 1. If TSME is
-	not active, the /sys/kernel/tsme file will report 0.
+The TSME test module will create a sysfs file if no errors are
+encountered while loading the module: /sys/kernel/tsme. If TSME
+is active, the /sys/kernel/tsme file will report 1. If TSME is
+not active, the /sys/kernel/tsme file will report 0.
 
-	To build:
-		make
+To build:
+1. Adjust the path to the kernel dev files [here](./Makefile)
+2. Run `make`
 
-	To install:
-		insmod ./tsme-test.ko
+To install:
+1. Run `insmod ./tsme-test.ko` (root access is required)
 
-	In addition to creating the sysfs file, loading the module will
-	generate kernel messages that can also be used to determine the
-	status of TSME.
+In addition to creating the sysfs file, loading the module will
+generate kernel messages that can also be used to determine the
+status of TSME.
+
+On top of that, the TSME test is enhanced to verify the functionality
+of AMD SME (provided that the TSME check is performed successfully).
+Additional kernel messages are produced indicating buffer states
+w/ and w/o the encryption bit. 
+
+To view these messages, simply run `dmesg`.
+
+Don't forget that you have to `rmmod tsme-test` before rerunning 
+the test.
