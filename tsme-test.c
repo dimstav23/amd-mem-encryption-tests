@@ -85,8 +85,8 @@ static int __init tsme_test_init(void)
 	ret = -ENOMEM;
 
 	sme_mask = BIT_ULL(cpuid_ebx(0x8000001f) & 0x3f);
-	if (debug)
-		pr_notice("SME status: encryption-mask = %#lx\n", sme_mask);
+
+	pr_notice("SME status: encryption-mask = %#lx\n", sme_mask);
 
 	retry = 0;
 retry:
@@ -117,12 +117,11 @@ retry:
 	old_pte = *ptep;
 	new_pte = __pte(pte_val(*ptep) ^ sme_mask);
 
-	if (debug) {
-		pr_notice("%u additional attempts to allocate test capable buffer\n", retry);
-		pr_notice("Old PTE = %#lx, New PTE = %#lx\n", pte_val(old_pte), pte_val(new_pte));
-		pr_notice("Buffer (C-bit=%u)\n", (bool)(pte_val(old_pte) & sme_mask));
-		print_hex_dump(KERN_DEBUG, "TSME Test: Buffer (first 64 bytes - before: ", DUMP_PREFIX_OFFSET, 16, 1, buffer, 64, 1);
-	}
+	
+	pr_notice("%u additional attempts to allocate test capable buffer\n", retry);
+	pr_notice("Old PTE = %#lx, New PTE = %#lx\n", pte_val(old_pte), pte_val(new_pte));
+	pr_notice("Buffer (C-bit=%u)\n", (bool)(pte_val(old_pte) & sme_mask));
+	print_hex_dump(KERN_DEBUG, "TSME Test: Buffer (first 64 bytes - before: ", DUMP_PREFIX_OFFSET, 16, 1, buffer, 64, 1);
 
 	/*
 	 * Update the PTE for the buffer to set or clear the encryption mask
@@ -134,10 +133,9 @@ retry:
 	 */
 	update_pte(ptep, new_pte);
 
-	if (debug) {
-		pr_notice("Buffer (C-bit=%u)\n", (bool)(pte_val(new_pte) & sme_mask));
-		print_hex_dump(KERN_DEBUG, "TSME Test: Buffer (first 64 bytes -  after: ", DUMP_PREFIX_OFFSET, 16, 1, buffer, 64, 1);
-	}
+	pr_notice("Buffer (C-bit=%u)\n", (bool)(pte_val(new_pte) & sme_mask));
+	print_hex_dump(KERN_DEBUG, "TSME Test: Buffer (first 64 bytes -  after: ", DUMP_PREFIX_OFFSET, 16, 1, buffer, 64, 1);
+	
 
 	if (memcmp(buffer, buffer_reference, PAGE_SIZE) == 0) {
 		/* Buffers match - TSME is active */
