@@ -2,7 +2,8 @@
 #
 # SME test external module makefile
 
-KDIR	?= /lib/modules/`uname -r`/build
+#KDIR	?= /lib/modules/`uname -r`/build
+KDIR	:= $(shell find /nix/store -wholename "*lib/modules/`uname -r`/build")
 
 all:
 	$(MAKE) -C $(KDIR) M=$$PWD
